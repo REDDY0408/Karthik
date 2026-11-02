@@ -1,37 +1,54 @@
-.hand { display:flex; align-items:flex-end; gap:16px; padding:26px 8px 8px; overflow-x:auto; }
-.group { display:flex; }
-
-.card {
-  position:relative; flex:0 0 auto;
-  width:58px; height:84px; margin-left:-26px;
-  background:#fff; border-radius:7px; border:1px solid #bbb;
-  box-shadow:-2px 1px 4px rgba(0,0,0,.35);
-  font-family:Arial,sans-serif; cursor:pointer;
-  transition:transform .12s; z-index:1;
-}
-.group .card:first-child { margin-left:0; }
-.card.red   { color:#d3151b; }
-.card.black { color:#111; }
-
-.card .corner {
-  position:absolute; top:3px; left:5px;
-  display:flex; flex-direction:column; align-items:center;
-  line-height:1; font-weight:700;
-}
-.card .corner b { font-size:22px; }
-.card .corner i { font-size:20px; font-style:normal; }
-
-.card .big {
-  position:absolute; right:5px; bottom:4px;
-  font-size:34px; line-height:1;
-}
-.card.joker { color:#7b1fa2; }
-
-.card.selected {
-  transform:translateY(-22px);
-  z-index:100;
-  border:2px solid #f5a623;
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Rummy Friends</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#0b3d2e;color:#fff;font-family:system-ui,sans-serif}
+body{display:flex;flex-direction:column;overflow:hidden}
+button{font:inherit;border:0;border-radius:10px;padding:10px 14px;background:#f5b301;color:#222;font-weight:700}
+button.sec{background:#1d6b52;color:#fff}
+button.red{background:#c0392b;color:#fff}
+button:disabled{opacity:.4}
+input{font:inherit;padding:12px;border-radius:10px;border:0;width:100%;margin:6px 0}
+.screen{display:none;flex:1;flex-direction:column;padding:16px;overflow:auto}
+.screen.on{display:flex}
+h1{margin:8px 0 16px;text-align:center}
+.box{background:#12523d;border-radius:14px;padding:14px;margin:8px 0}
+.code{font-size:34px;letter-spacing:6px;text-align:center;font-weight:800}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}
+.pl{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #ffffff22}
+#bar{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#08291e;font-size:13px}
+#players{display:flex;gap:6px;padding:6px;overflow-x:auto}
+.chip{min-width:84px;background:#12523d;border-radius:10px;padding:5px 8px;font-size:12px;text-align:center}
+.chip.turn{outline:2px solid #f5b301}.chip.gone{opacity:.45}
+#table{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:120px}
+#piles{display:flex;gap:26px;align-items:center}
+.card{width:46px;height:66px;border-radius:7px;background:#fff;color:#111;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:15px;line-height:1.1;border:1px solid #999;position:relative;flex:none}
+.card b{font-size:17px}.card.red{color:#c0392b}
+.card.joker{color:#7d3c98}.card.joker small{font-size:8px}
+.card.wild::after{content:"W";position:absolute;top:1px;right:3px;font-size:9px;color:#e67e22;font-weight:800}
+.card.back{background:repeating-linear-gradient(45deg,#2c5aa0,#2c5aa0 6px,#244a85 6px,#244a85 12px);color:#fff}
+.card.big{width:56px;height:80px}
+.card.sel{transform:translateY(-14px);box-shadow:0 0 0 2px #f5b301}
+.pile{text-align:center;font-size:11px}
+.pile.can .card{box-shadow:0 0 0 3px #f5b301}
+#msg{font-size:14px;min-height:20px;text-align:center}
+#hand{display:flex;flex-wrap:wrap;gap:8px 12px;padding:22px 8px 8px;justify-content:center;min-height:120px}
+.grp{display:flex;align-items:flex-end}
+.grp .card+.card{margin-left:-24px}
+.plus{margin-left:4px;padding:2px 8px;border-radius:50%;background:#f5b301}
+#ctl{display:flex;gap:6px;padding:8px;background:#08291e}#ctl button{flex:1;padding:12px 4px}
+.modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:14px;z-index:9}
+.modal.on{display:flex}
+.mb{background:#12523d;border-radius:14px;padding:14px;max-height:90vh;overflow:auto;width:100%;max-width:480px}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:5px 4px;text-align:center;border-bottom:1px solid #ffffff22}td:first-child,th:first-child{text-align:left}
+.mini{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}.mini .grp .card{transform:scale(.62);margin:-10px -6px -10px -6px}.mini .grp .card+.card{margin-left:-24px}
+.small{font-size:12px;opacity:.8}
+#toast{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#c0392b;padding:8px 14px;border-radius:10px;display:none;z-index:20}
+</style>
 </head>
 <body>
 <div id="toast"></div>
