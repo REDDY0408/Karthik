@@ -48,7 +48,35 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:5px 4px;t
 .mini{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}.mini .grp .card{transform:scale(.62);margin:-10px -6px -10px -6px}.mini .grp .card+.card{margin-left:-24px}
 .small{font-size:12px;opacity:.8}
 #toast{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#c0392b;padding:8px 14px;border-radius:10px;display:none;z-index:20}
-</style>
+</.card{font-size:12px;width:5.5em;height:8em;border-radius:.5em;background:#fffdf7;color:#15161a;position:relative;flex:none;border:1px solid #8d8d8d;box-shadow:0 1px 3px #0008;overflow:hidden;user-select:none;-webkit-user-select:none}
+.card.red{color:#d11a1a}
+.card .idx{position:absolute;left:.3em;top:.25em;width:1.35em;display:flex;flex-direction:column;align-items:center;line-height:1}
+.card .idx b{font-size:1.25em;font-weight:800;letter-spacing:-.1em;font-family:Georgia,'Times New Roman',serif}
+.card .idx span{font-size:1.1em;margin-top:.08em}
+.card .idx.br{left:auto;top:auto;right:.3em;bottom:.25em;transform:rotate(180deg)}
+.card .pips{position:absolute;left:31%;right:31%;top:8%;bottom:8%}
+.card .pip{position:absolute;font-style:normal;font-size:1.15em;line-height:1;transform:translate(-50%,-50%)}
+.card .pip.flip{transform:translate(-50%,-50%) rotate(180deg)}
+.card .pip.ace{font-size:3.2em}
+.card .face{position:absolute;left:28%;right:28%;top:8%;bottom:8%;border:1px solid currentColor;border-radius:.35em;background:linear-gradient(160deg,#fff4cf,#f3d98a);display:flex;flex-direction:column;overflow:hidden}
+.card .face .half{flex:1;display:flex;align-items:center;justify-content:center}
+.card .face .half:first-child{border-bottom:1px solid currentColor}
+.card .face .half.flip{transform:rotate(180deg)}
+.card .face .fig{font-size:2em;line-height:1}
+.card .face .fs{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:1.5em;height:1.5em;border-radius:50%;background:#fffdf7;border:1px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:.95em;text-decoration:none;line-height:1}
+.card.joker{background:linear-gradient(160deg,#ffffff,#eadcff);color:#6c2bd9}
+.card.joker .idx em{font-style:normal;font-size:.55em;font-weight:800;writing-mode:vertical-rl;letter-spacing:.1em;margin-top:.25em}
+.card .jmid{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:3.4em;line-height:1;color:#e6a700;text-shadow:0 0 .15em #fff}
+.card.wild{box-shadow:0 0 0 2px #f5b301,0 1px 3px #0008}
+.card.wild::after{content:"W";position:absolute;left:.3em;bottom:.3em;width:1.5em;height:1.5em;border-radius:50%;background:#f5b301;color:#222;font-size:.85em;font-weight:800;display:flex;align-items:center;justify-content:center}
+.card.back{background:repeating-linear-gradient(45deg,#2c5aa0,#2c5aa0 6px,#244a85 6px,#244a85 12px);border:2px solid #fff}
+.card.big{font-size:13px}
+.card.small{font-size:6.5px;margin:-8px 0}
+.card.sel{transform:translateY(-14px);box-shadow:0 0 0 3px #f5b301,0 2px 6px #000a}
+
+.grp{display:flex;align-items:flex-end}
+.grp{flex:none}.grp .card+.card{margin-left:-2.7em}
+.mini{display:flex;flex-wrap:wrap;gap:6px 10px;margin:4px 0}.mini .card{font-size:7px}>
 </head>
 <body>
 <div id="toast"></div>
