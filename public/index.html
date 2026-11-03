@@ -1,116 +1,436 @@
-(function(){
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Rummy Friends</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:radial-gradient(ellipse at center,#5b1d14 0%,#2a0c08 100%);color:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{display:flex;flex-direction:column;overflow:hidden}
+button{font:inherit;border:0;border-radius:10px;padding:10px 14px;background:#f5b301;color:#222;font-weight:700}
+button.sec{background:#1d6b52;color:#fff}
+button.red{background:#c0392b;color:#fff}
+button:disabled{opacity:.4}
+input{font:inherit;padding:12px;border-radius:10px;border:0;width:100%;margin:6px 0}
+.screen{display:none;flex:1;flex-direction:column;padding:16px;overflow:auto;min-height:0}
+.screen.on{display:flex}
+h1{margin:8px 0 16px;text-align:center}
+.box{background:#12523d;border-radius:14px;padding:14px;margin:8px 0}
+.code{font-size:34px;letter-spacing:6px;text-align:center;font-weight:800}
+.pl{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #ffffff22}
+.small{font-size:12px;opacity:.8}
 
-// Indian Rummy (13 cards) rules engine. Ace = 1 (can also be high: Q-K-A). J=11, Q=12, K=13.
-// Printed joker: s === 'J', r === 0.  Wild joker = every card whose rank === wildRank.
+/* ---------- game table ---------- */
+#game.screen{padding:0;overflow:hidden}
+#game.screen.on{display:grid;grid-template-columns:1fr 92px;grid-template-rows:auto minmax(0,1fr) auto auto}
+#topbar{grid-column:1/3;display:flex;align-items:center;gap:12px;padding:4px 10px;background:#0008;font-size:clamp(11px,2.5vh,14px);white-space:nowrap;overflow:hidden}
+#topbar .sp{flex:1}
+#topbar button{padding:4px 10px;font-size:inherit}
+#timer.low{color:#ff8a80;font-weight:800}
+#felt{grid-column:1;grid-row:2;position:relative;margin:38px 12px 8px;border-radius:50%;background:radial-gradient(ellipse at center,#23a35c 0%,#12773f 65%,#0b5a30 100%);border:clamp(5px,1.4vh,9px) solid #7a3b1d;box-shadow:inset 0 0 40px #0009,0 5px 16px #000b}
+#side{grid-column:2;grid-row:2/5;display:flex;flex-direction:column;gap:8px;padding:8px 8px 8px 0;justify-content:center}
+#side button{padding:10px 4px;font-size:clamp(11px,2.7vh,14px)}
+#handwrap{grid-column:1;grid-row:4;padding:0 4px 4px;min-width:0}
+#pts{font-size:clamp(10px,2.3vh,13px);background:#0007;border-radius:10px;padding:2px 9px}
 
-const SUITS = ['S', 'H', 'D', 'C'];
+.seat{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;z-index:2;text-align:center}
+.seat .av{width:clamp(28px,8vh,44px);height:clamp(28px,8vh,44px);border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(12px,3.4vh,19px);box-shadow:0 2px 5px #000a}
+.seat.turn .av{border-color:#ffd54a;box-shadow:0 0 0 3px #ffd54a99,0 0 14px #ffd54a;animation:pulse 1.2s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 6px #ffd54a55,0 0 20px #ffd54a}}
+.seat .sn{font-size:clamp(10px,2.4vh,13px);font-weight:700;background:#000a;border-radius:8px;padding:1px 7px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.seat .ss{font-size:clamp(9px,2.1vh,11px);white-space:nowrap;text-shadow:0 1px 2px #000;font-weight:600}
+.seat.gone{opacity:.5}
+.seat .fan{position:absolute;left:calc(100% - 6px);top:2px;display:flex}
+.cb{display:block;width:clamp(11px,3vh,17px);height:clamp(16px,4.3vh,24px);border-radius:3px;border:1px solid #fff;background:repeating-linear-gradient(45deg,#e8962e,#e8962e 3px,#c97a1a 3px,#c97a1a 6px);margin-left:-7px;transform:rotate(var(--r))}
+.seat .fan .cb:first-child{margin-left:0}
 
-function makeDeck() {
-  const cards = [];
-  let id = 0;
-  for (let d = 0; d < 2; d++)
-    for (const s of SUITS)
-      for (let r = 1; r <= 13; r++) cards.push({ id: id++, r, s });
-  cards.push({ id: id++, r: 0, s: 'J' });
-  cards.push({ id: id++, r: 0, s: 'J' });
-  return cards; // 106 cards
+#center{position:absolute;left:50%;top:56%;transform:translate(-50%,-50%);display:flex;align-items:flex-end;gap:clamp(8px,2.2vw,24px)}
+.slot{display:flex;flex-direction:column;align-items:center;gap:3px}
+.slot label{font-size:clamp(7px,1.9vh,10px);font-weight:700;letter-spacing:.04em;text-align:center;line-height:1.15;background:#0006;border-radius:4px;padding:1px 5px}
+.slot .card{font-size:clamp(8px,2.7vh,13px)}
+.slot.can .card,.slot.can .finishbox{box-shadow:0 0 0 3px #ffd54a,0 0 14px #ffd54a}
+.jwrap{display:flex;align-items:center;gap:3px}
+.jwrap .vt{writing-mode:vertical-rl;transform:rotate(180deg);font-size:clamp(8px,2vh,11px);font-weight:800;letter-spacing:.15em;background:#0007;border-radius:4px;padding:3px 1px}
+.finishbox{font-size:clamp(8px,2.7vh,13px);width:5.5em;height:8em;border:2px dashed #ffffffaa;border-radius:.5em;background:#0b5a30;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:800;color:#d6efdf;line-height:1.2}
+#msg{grid-column:1;grid-row:3;text-align:center;font-size:clamp(10px,2.6vh,14px);padding:0 10px;min-height:1.5em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#ffe9a8;font-weight:600}
+
+#hand{display:flex;align-items:flex-start;justify-content:center;justify-content:safe center;gap:clamp(8px,2.2vh,18px);padding:clamp(16px,3.4vh,26px) 8px 2px;overflow-x:auto;overflow-y:hidden}
+#hand .card{font-size:var(--fs,clamp(9px,3.1vh,17px))}
+.grp{display:flex;flex-direction:column;align-items:flex-start;flex:none}
+.grp .cards{display:flex}
+.grp .cards .card+.card{margin-left:-2.7em}
+.gl{display:flex;align-items:center;gap:6px;font-size:clamp(9px,2.2vh,12px);font-weight:700;margin-top:3px;min-height:1.5em;white-space:nowrap}
+.gl.pure{color:#ffe27a}.gl.ok{color:#8dffb0}.gl.bad{color:#ffa89c}
+.plus{margin-left:auto;padding:0 8px;border-radius:50%;background:#f5b301;font-size:14px;line-height:1.4}
+
+@media (orientation:portrait){
+  #game.screen.on{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) auto auto auto}
+  #topbar{grid-column:1}
+  #myinfo{display:none}
+  #msg{white-space:normal;text-align:center;font-size:12px}
+  #side{grid-column:1;grid-row:5;flex-direction:row;padding:6px}
+  #side button{flex:1}
+  #felt{border-radius:42%/30%;margin:42px 10px 6px}
+  #hand{flex-wrap:wrap;overflow-y:auto;max-height:34vh;justify-content:center}
+  #hand .card{font-size:var(--fs,clamp(9px,2.9vw,14px))}
+  .slot .card,.finishbox{font-size:clamp(7px,2.2vw,11px)}
 }
 
-function shuffle(a) {
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+/* ---------- cards ---------- */
+.card{font-size:12px;width:5.5em;height:8em;border-radius:.5em;background:#fffdf7;color:#15161a;position:relative;flex:none;border:1px solid #8d8d8d;box-shadow:0 1px 3px #0008;overflow:hidden;user-select:none;-webkit-user-select:none}
+.card.red{color:#d11a1a}
+.card .idx{position:absolute;left:.3em;top:.25em;width:1.35em;display:flex;flex-direction:column;align-items:center;line-height:1}
+.card .idx b{font-size:1.25em;font-weight:800;letter-spacing:-.1em;font-family:Georgia,'Times New Roman',serif}
+.card .idx span{font-size:1.1em;margin-top:.08em}
+.card .idx.br{left:auto;top:auto;right:.3em;bottom:.25em;transform:rotate(180deg)}
+.card .pips{position:absolute;left:31%;right:31%;top:8%;bottom:8%}
+.card .pip{position:absolute;font-style:normal;font-size:1.15em;line-height:1;transform:translate(-50%,-50%)}
+.card .pip.flip{transform:translate(-50%,-50%) rotate(180deg)}
+.card .pip.ace{font-size:3.2em}
+.card .face{position:absolute;left:28%;right:28%;top:8%;bottom:8%;border:1px solid currentColor;border-radius:.35em;background:linear-gradient(160deg,#fff4cf,#f3d98a);display:flex;flex-direction:column;overflow:hidden}
+.card .face .half{flex:1;display:flex;align-items:center;justify-content:center}
+.card .face .half:first-child{border-bottom:1px solid currentColor}
+.card .face .half.flip{transform:rotate(180deg)}
+.card .face .fig{font-size:2em;line-height:1}
+.card .face .fs{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:1.5em;height:1.5em;border-radius:50%;background:#fffdf7;border:1px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:.95em;text-decoration:none;line-height:1}
+.card.joker{background:linear-gradient(160deg,#ffffff,#eadcff);color:#6c2bd9}
+.card.joker .idx em{font-style:normal;font-size:.55em;font-weight:800;writing-mode:vertical-rl;letter-spacing:.1em;margin-top:.25em}
+.card .jmid{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:3.4em;line-height:1;color:#e6a700;text-shadow:0 0 .15em #fff}
+.card.wild{box-shadow:0 0 0 2px #f5b301,0 1px 3px #0008}
+.card.wild::after{content:"W";position:absolute;left:.3em;bottom:.3em;width:1.5em;height:1.5em;border-radius:50%;background:#f5b301;color:#222;font-size:.85em;font-weight:800;display:flex;align-items:center;justify-content:center}
+.card.back{background:repeating-linear-gradient(45deg,#2c5aa0,#2c5aa0 6px,#244a85 6px,#244a85 12px);border:2px solid #fff}
+.card.big{font-size:13px}
+.card.small{font-size:6.5px;margin:-8px 0}
+.card.sel{transform:translateY(-14px);box-shadow:0 0 0 3px #f5b301,0 2px 6px #000a}
+
+.card.back{background:repeating-linear-gradient(45deg,#e8962e,#e8962e 5px,#c97a1a 5px,#c97a1a 10px);border:2px solid #fff}
+
+.modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:14px;z-index:9}
+.modal.on{display:flex}
+.mb{background:#12523d;border-radius:14px;padding:14px;max-height:92vh;overflow:auto;width:100%;max-width:520px}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:5px 4px;text-align:center;border-bottom:1px solid #ffffff22}td:first-child,th:first-child{text-align:left}
+.mini{display:flex;flex-wrap:wrap;gap:6px 10px;margin:4px 0}.mini .card{font-size:7px}
+#toast{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#c0392b;padding:8px 14px;border-radius:10px;display:none;z-index:20}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+
+<div id="home" class="screen on">
+  <h1>🃏 Rummy Friends</h1>
+  <div class="box">
+    <div class="small">Your name</div>
+    <input id="name" maxlength="14" placeholder="Enter your name">
+    <button id="create" style="width:100%;margin-top:6px">Create room</button>
+  </div>
+  <div class="box">
+    <div class="small">Have a code or link?</div>
+    <input id="code" maxlength="6" placeholder="ROOM CODE" style="text-transform:uppercase">
+    <button id="join" class="sec" style="width:100%">Join room</button>
+  </div>
+  <div class="small" style="text-align:center">13-card Indian Rummy (Points) · 2 to 6 players<br>Drop 25 / 50 · Full count 80 · Out at 101<br>Best played with the phone turned sideways</div>
+</div>
+
+<div id="lobby" class="screen">
+  <h1>Waiting room</h1>
+  <div class="box"><div class="small" style="text-align:center">Room code</div><div class="code" id="lcode"></div></div>
+  <button id="invite" style="background:#25d366;color:#fff">📲 Invite friends on WhatsApp</button>
+  <div class="box" id="lplayers"></div>
+  <button id="start">Start game</button>
+  <div id="lwait" class="small" style="text-align:center;margin-top:8px"></div>
+  <button id="lleave" class="sec" style="margin-top:12px">Leave</button>
+</div>
+
+<div id="game" class="screen">
+  <div id="topbar">
+    <span id="deal"></span>
+    <span id="myinfo"></span>
+    <span id="pts"></span>
+    <span class="sp"></span>
+    <span id="timer"></span>
+    <button id="board" class="sec">📊 Scores</button>
+  </div>
+  <div id="felt">
+    <div id="seats"></div>
+    <div id="center">
+      <div class="slot"><div class="jwrap"><div class="vt">JOKER</div><div id="wild"></div></div></div>
+      <div class="slot" id="stockp"><div class="card back"></div><label>CLOSED DECK<br><span id="stockn"></span></label></div>
+      <div class="slot" id="discp"><div id="disc"></div><label>OPEN DECK</label></div>
+      <div class="slot" id="finish"><div class="finishbox">FINISH<br>SLOT</div><label>tap to show</label></div>
+    </div>
+  </div>
+  <div id="msg"></div>
+  <div id="side">
+    <button id="bgroup" class="sec">Group</button>
+    <button id="bsort" class="sec">Sort</button>
+    <button id="bdisc">Discard</button>
+    <button id="bshow" class="red">Show</button>
+    <button id="bdrop" class="red">Drop</button>
+  </div>
+  <div id="handwrap"><div id="hand"></div></div>
+</div>
+
+<div id="modal" class="modal"><div class="mb" id="mb"></div></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/rules-client.js"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+const socket = io();
+/*CARDS-START*/
+const SYM = { S: '\u2660\uFE0E', H: '\u2665\uFE0E', D: '\u2666\uFE0E', C: '\u2663\uFE0E' };
+const RK = (r) => ({ 1: 'A', 11: 'J', 12: 'Q', 13: 'K' }[r] || r);
+const FIG = { 11: '\u265E\uFE0E', 12: '\u265B\uFE0E', 13: '\u265A\uFE0E' };
+const PIPS = {
+  2: [[50, 10], [50, 90]],
+  3: [[50, 10], [50, 50], [50, 90]],
+  4: [[22, 10], [78, 10], [22, 90], [78, 90]],
+  5: [[22, 10], [78, 10], [50, 50], [22, 90], [78, 90]],
+  6: [[22, 10], [78, 10], [22, 50], [78, 50], [22, 90], [78, 90]],
+  7: [[22, 10], [78, 10], [50, 30], [22, 50], [78, 50], [22, 90], [78, 90]],
+  8: [[22, 10], [78, 10], [50, 30], [22, 50], [78, 50], [50, 70], [22, 90], [78, 90]],
+  9: [[22, 10], [78, 10], [22, 37], [78, 37], [50, 50], [22, 63], [78, 63], [22, 90], [78, 90]],
+  10: [[22, 10], [78, 10], [50, 23], [22, 37], [78, 37], [22, 63], [78, 63], [50, 77], [22, 90], [78, 90]],
+};
+function cardEl(c, extra = '') {
+  if (c.s === 'J') {
+    const ix = '<b>\u2605</b><em>JOKER</em>';
+    return `<div class="card joker ${extra}" data-id="${c.id}"><div class="idx">${ix}</div><div class="jmid">\u2605</div><div class="idx br">${ix}</div></div>`;
   }
-  return a;
+  const red = c.s === 'H' || c.s === 'D';
+  const wild = typeof S !== 'undefined' && S && c.r === S.wildRank;
+  const sym = SYM[c.s], rk = RK(c.r);
+  let body;
+  if (c.r === 1) body = `<div class="pips"><i class="pip ace" style="left:50%;top:50%">${sym}</i></div>`;
+  else if (c.r <= 10) body = `<div class="pips">${PIPS[c.r].map(([x, y]) => `<i class="pip ${y > 50 ? 'flip' : ''}" style="left:${x}%;top:${y}%">${sym}</i>`).join('')}</div>`;
+  else body = `<div class="face"><div class="half"><span class="fig">${FIG[c.r]}</span></div><div class="half flip"><span class="fig">${FIG[c.r]}</span></div><u class="fs">${sym}</u></div>`;
+  const ix = `<b>${rk}</b><span>${sym}</span>`;
+  return `<div class="card ${red ? 'red' : ''} ${wild ? 'wild' : ''} ${extra}" data-id="${c.id}"><div class="idx">${ix}</div>${body}<div class="idx br">${ix}</div></div>`;
+}
+/*CARDS-END*/
+const pid = localStorage.pid || (localStorage.pid = Math.random().toString(36).slice(2) + Date.now().toString(36));
+let S = null, groups = [], sel = new Set(), modalKind = '', sortedDeal = 0;
+const linkCode = ((location.pathname.match(/^\/r\/([A-Za-z0-9]+)/) || [])[1] || '').toUpperCase();
+if (linkCode) localStorage.room = linkCode;
+$('#name').value = localStorage.name || '';
+$('#code').value = linkCode;
+
+function toast(t) { const e = $('#toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => (e.style.display = 'none'), 2600); }
+function show(id) { document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('on', s.id === id)); }
+function esc(t) { return String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function nameOrWarn() {
+  const n = $('#name').value.trim();
+  if (!n) { toast('Enter your name first'); return null; }
+  localStorage.name = n; return n;
+}
+function join(code, create) {
+  const name = nameOrWarn(); if (!name) return;
+  socket.emit('join', { code, pid, name, create });
+}
+$('#create').onclick = () => join('', true);
+$('#join').onclick = () => { const c = $('#code').value.trim().toUpperCase(); if (c.length < 4) return toast('Enter room code'); join(c, false); };
+socket.on('connect', () => { if (localStorage.name && localStorage.room) socket.emit('join', { code: localStorage.room, pid, name: localStorage.name, create: false }); });
+socket.on('err', (m) => { toast(m); if (!S) { localStorage.removeItem('room'); } });
+
+function invite() {
+  const url = location.origin + '/r/' + S.code;
+  const text = `Join my Rummy game 🃏\nRoom code: ${S.code}\n${url}`;
+  if (window.AndroidBridge && AndroidBridge.share) AndroidBridge.share(text);
+  else if (navigator.share) navigator.share({ text }).catch(() => {});
+  else window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+$('#invite').onclick = invite;
+$('#start').onclick = () => socket.emit('start');
+$('#lleave').onclick = leave;
+function leave() { socket.emit('leave'); localStorage.removeItem('room'); S = null; history.replaceState(null, '', '/'); show('home'); closeModal(); }
+
+socket.on('state', (s) => {
+  S = s;
+  localStorage.room = s.code;
+  if (location.pathname !== '/r/' + s.code) history.replaceState(null, '', '/r/' + s.code);
+  groups = s.groups.map((g) => g.slice());
+  if (s.phase === 'playing' && s.hand.length === 13 && groups.length === 1 && sortedDeal !== s.dealNo) { sortedDeal = s.dealNo; autoSort(); }
+  sel = new Set([...sel].filter((id) => s.hand.some((c) => c.id === id)));
+  render();
+});
+
+const POS = {
+  1: [[50, -4]],
+  2: [[26, 5], [74, 5]],
+  3: [[8, 42], [50, -4], [92, 42]],
+  4: [[8, 46], [30, 5], [70, 5], [92, 46]],
+  5: [[7, 54], [20, 11], [50, -4], [80, 11], [93, 54]],
+};
+function renderSeats() {
+  const n = S.players.length;
+  const mi = S.players.findIndex((p) => p.pid === S.me);
+  const others = [];
+  for (let k = 1; k < n; k++) others.push(S.players[(mi + k) % n]);
+  const pos = POS[others.length] || [];
+  $('#seats').innerHTML = others.map((p, i) => {
+    const [x, y] = pos[i] || [50, 2];
+    const hue = [...p.name].reduce((a, c) => a + c.charCodeAt(0), 0) * 37 % 360;
+    const gone = p.out || p.status === 'dropped' || p.status === 'wrong';
+    const st = p.out ? 'OUT' : p.status === 'dropped' ? 'Dropped' : p.status === 'wrong' ? 'Wrong show' : p.cards + ' cards';
+    const fan = !gone && p.cards ? '<div class="fan"><i class="cb" style="--r:-14deg"></i><i class="cb" style="--r:0deg"></i><i class="cb" style="--r:14deg"></i></div>' : '';
+    return `<div class="seat ${p.pid === S.turnPid ? 'turn' : ''} ${gone ? 'gone' : ''}" style="left:${x}%;top:${y}%"><div class="av" style="background:hsl(${hue},55%,42%)">${esc(p.name.charAt(0).toUpperCase())}</div>${fan}<div class="sn">${esc(p.name)}${p.connected ? '' : ' ⚠'}</div><div class="ss">${st} · ${p.total} pts</div></div>`;
+  }).join('');
 }
 
-const pts = (c) => (c.s === 'J' ? 0 : c.r === 1 || c.r >= 10 ? 10 : c.r);
-const isPrinted = (c) => c.s === 'J';
-const isWild = (c, w) => c.s === 'J' || c.r === w;
-
-function fits(ranks, n, high) {
-  const lo = high ? 2 : 1;
-  const hi = high ? 14 : 13;
-  const mn = ranks[0];
-  const mx = ranks[ranks.length - 1];
-  for (let st = lo; st + n - 1 <= hi; st++) if (st <= mn && st + n - 1 >= mx) return true;
-  return false;
+function render() {
+  if (S.phase === 'lobby') return renderLobby();
+  show('game');
+  const meP = S.players.find((p) => p.pid === S.me);
+  const myTurn = S.turnPid === S.me && S.phase === 'playing';
+  const canPlay = meP && meP.status === 'active' && S.phase === 'playing';
+  $('#deal').textContent = 'Deal ' + S.dealNo;
+  $('#myinfo').textContent = meP.name + ' · ' + meP.total + ' pts';
+  renderSeats();
+  $('#wild').innerHTML = S.wild ? cardEl(S.wild) : '';
+  $('#stockn').textContent = S.stockCount + ' cards';
+  const top = S.discard[S.discard.length - 1];
+  $('#disc').innerHTML = top ? cardEl(top) : '<div class="card" style="opacity:.25"></div>';
+  $('#stockp').classList.toggle('can', myTurn && S.turnPhase === 'draw');
+  $('#discp').classList.toggle('can', myTurn && S.turnPhase === 'draw');
+  $('#finish').classList.toggle('can', myTurn && S.turnPhase === 'discard' && sel.size === 1);
+  const who = S.players.find((p) => p.pid === S.turnPid);
+  $('#msg').textContent = S.phase !== 'playing' ? '' : !canPlay ? 'You are out of this deal. Watching...' : myTurn ? (S.turnPhase === 'draw' ? 'Your turn: tap Closed Deck or Open Deck to draw' : 'Select a card: Discard it, or tap Finish Slot to show') : who ? who.name + "'s turn" : '';
+  $('#bgroup').disabled = !canPlay || sel.size < 2;
+  $('#bsort').disabled = !canPlay;
+  $('#bdisc').disabled = !(myTurn && S.turnPhase === 'discard' && sel.size === 1);
+  $('#bshow').disabled = !(myTurn && S.turnPhase === 'discard' && sel.size === 1);
+  $('#bdrop').disabled = !(myTurn && S.turnPhase === 'draw');
+  renderHand(canPlay);
+  if (S.phase === 'dealEnd') showResult(false);
+  else if (S.phase === 'gameOver') showResult(true);
+  else if (modalKind === 'result') closeModal();
 }
 
-function runOk(ranks, n) {
-  if (fits(ranks, n, false)) return true;
-  if (ranks.includes(1)) {
-    const r2 = ranks.map((x) => (x === 1 ? 14 : x)).sort((a, b) => a - b);
-    return fits(r2, n, true);
+function renderHand(canPlay) {
+  const m = Object.fromEntries(S.hand.map((c) => [c.id, c]));
+  $('#hand').innerHTML = groups.map((g, gi) => {
+    const cards = g.map((id) => m[id]).filter(Boolean);
+    let label = '&nbsp;', cls = '';
+    if (cards.length >= 3) {
+      const k = RULES.classify(cards, S.wildRank);
+      if (k === 'pure') { label = '✔ Pure Sequence'; cls = 'pure'; }
+      else if (k === 'seq') { label = '✔ Sequence'; cls = 'ok'; }
+      else if (k === 'set') { label = '✔ Set'; cls = 'ok'; }
+      else { label = '✖ Invalid'; cls = 'bad'; }
+    }
+    const plus = sel.size && !g.every((id) => sel.has(id)) ? `<button class="plus" data-g="${gi}">+</button>` : '';
+    return `<div class="grp"><div class="cards">${cards.map((c) => cardEl(c, sel.has(c.id) ? 'sel' : '')).join('')}</div><div class="gl ${cls}"><span>${label}</span>${plus}</div></div>`;
+  }).join('');
+  fitHand();
+  if (canPlay && S.hand.length) {
+    const pts = RULES.evaluate(groups.map((g) => g.map((id) => m[id]).filter(Boolean)), S.wildRank, S.cfg.MAX_DEAL).deadwood;
+    $('#pts').textContent = 'Points: ' + pts;
+  } else $('#pts').textContent = '';
+}
+
+function fitHand() {
+  const h = $('#hand');
+  h.style.removeProperty('--fs');
+  const first = h.querySelector('.card');
+  if (!first || !h.clientWidth) return;
+  if (h.scrollWidth > h.clientWidth + 1) {
+    const cs = parseFloat(getComputedStyle(first).fontSize);
+    const fs = Math.max(7, cs * (h.clientWidth / h.scrollWidth) * 0.96);
+    h.style.setProperty('--fs', fs + 'px');
   }
-  return false;
+}
+window.addEventListener('resize', () => { if (S && S.phase !== 'lobby') fitHand(); });
+
+function renderLobby() {
+  show('lobby');
+  $('#lcode').textContent = S.code;
+  $('#lplayers').innerHTML = S.players.map((p) => `<div class="pl"><span>${esc(p.name)}${p.pid === S.host ? ' 👑' : ''}${p.pid === S.me ? ' (you)' : ''}</span><span>${p.connected ? '🟢' : '⚪'}</span></div>`).join('') + `<div class="small" style="margin-top:6px">${S.players.length}/6 players</div>`;
+  const host = S.host === S.me;
+  $('#start').style.display = host ? 'block' : 'none';
+  $('#start').disabled = S.players.length < 2;
+  $('#lwait').textContent = host ? (S.players.length < 2 ? 'Invite at least one friend to start.' : '') : 'Waiting for the host to start...';
 }
 
-function uniqueSorted(ranks) {
-  const s = ranks.slice().sort((a, b) => a - b);
-  for (let i = 1; i < s.length; i++) if (s[i] === s[i - 1]) return null;
-  return s;
+$('#hand').onclick = (e) => {
+  const plus = e.target.closest('.plus');
+  if (plus) { moveSelTo(+plus.dataset.g); return; }
+  const c = e.target.closest('.card'); if (!c) return;
+  const id = +c.dataset.id;
+  sel.has(id) ? sel.delete(id) : sel.add(id);
+  render();
+};
+function pushArrange() { groups = groups.filter((g) => g.length); socket.emit('arrange', { groups }); }
+function moveSelTo(gi) {
+  groups = groups.map((g, i) => (i === gi ? g : g.filter((id) => !sel.has(id))));
+  const order = S.hand.map((c) => c.id).filter((id) => sel.has(id) && !groups[gi].includes(id));
+  groups[gi] = groups[gi].concat(order);
+  sel.clear(); pushArrange(); render();
 }
-
-function pureSeq(cards) {
-  if (cards.length < 3) return false;
-  if (cards.some(isPrinted)) return false;
-  const s = cards[0].s;
-  if (cards.some((c) => c.s !== s)) return false;
-  const ranks = uniqueSorted(cards.map((c) => c.r));
-  if (!ranks) return false;
-  return runOk(ranks, cards.length);
+$('#bgroup').onclick = () => {
+  const order = S.hand.map((c) => c.id).filter((id) => sel.has(id));
+  groups = groups.map((g) => g.filter((id) => !sel.has(id))).filter((g) => g.length);
+  groups.push(order);
+  sel.clear(); pushArrange(); render();
+};
+function suitGroups() {
+  const bySuit = {};
+  S.hand.forEach((c) => (bySuit[c.s] = bySuit[c.s] || []).push(c));
+  return ['S', 'H', 'D', 'C', 'J'].filter((x) => bySuit[x]).map((x) => bySuit[x].sort((a, b) => a.r - b.r).map((c) => c.id));
 }
-
-function impureSeq(cards, w) {
-  if (cards.length < 3) return false;
-  const nat = cards.filter((c) => !isWild(c, w));
-  if (nat.length === 0) return false;
-  const s = nat[0].s;
-  if (nat.some((c) => c.s !== s)) return false;
-  const ranks = uniqueSorted(nat.map((c) => c.r));
-  if (!ranks) return false;
-  return runOk(ranks, cards.length);
+function autoSort() { groups = suitGroups(); socket.emit('arrange', { groups }); }
+$('#bsort').onclick = () => { groups = suitGroups(); sel.clear(); pushArrange(); render(); };
+$('#stockp').onclick = () => { if (S.turnPid === S.me && S.turnPhase === 'draw') socket.emit('draw', { from: 'stock' }); };
+$('#discp').onclick = () => { if (S.turnPid === S.me && S.turnPhase === 'draw') socket.emit('draw', { from: 'discard' }); };
+$('#bdisc').onclick = () => { const id = [...sel][0]; sel.clear(); socket.emit('discard', { cardId: id }); };
+$('#bdrop').onclick = () => {
+  if (confirm('Drop this deal? You get ' + S.cfg.FIRST_DROP + ' points (first turn) or ' + S.cfg.MIDDLE_DROP + ' points (later).')) socket.emit('drop');
+};
+function doShow() {
+  if (!(S.turnPid === S.me && S.turnPhase === 'discard' && sel.size === 1)) { toast('Select one card to finish with, then tap Finish Slot'); return; }
+  const id = [...sel][0];
+  if (!confirm('Show with this card as your finish card? A wrong show costs ' + S.cfg.MAX_DEAL + ' points.')) return;
+  const g = groups.map((x) => x.filter((c) => c !== id)).filter((x) => x.length);
+  sel.clear(); socket.emit('declare', { discardId: id, groups: g });
 }
+$('#bshow').onclick = doShow;
+$('#finish').onclick = doShow;
 
-function setOk(cards, w) {
-  if (cards.length < 3 || cards.length > 4) return false;
-  const nat = cards.filter((c) => !isWild(c, w));
-  if (nat.length === 0) return false;
-  const r = nat[0].r;
-  if (nat.some((c) => c.r !== r)) return false;
-  const suits = new Set(nat.map((c) => c.s));
-  return suits.size === nat.length;
+function boardHtml() {
+  const n = Math.max(0, ...S.players.map((p) => p.scores.length));
+  const head = '<tr><th>Player</th>' + Array.from({ length: n }, (_, i) => `<th>D${i + 1}</th>`).join('') + '<th>Total</th></tr>';
+  const rows = S.players.map((p) => `<tr><td>${esc(p.name)}${p.out ? ' ❌' : ''}</td>${Array.from({ length: n }, (_, i) => `<td>${p.scores[i] == null ? '-' : p.scores[i]}</td>`).join('')}<td><b>${p.total}</b></td></tr>`).join('');
+  return `<table>${head}${rows}</table><div class="small" style="margin-top:6px">Out at ${S.cfg.TOTAL_OUT} points</div>`;
 }
+function openModal(kind, html) { modalKind = kind; $('#mb').innerHTML = html; $('#modal').classList.add('on'); }
+function closeModal() { modalKind = ''; $('#modal').classList.remove('on'); }
+$('#board').onclick = () => { openModal('board', '<h3>Scoreboard</h3>' + boardHtml() + '<button id="mclose" style="width:100%;margin-top:10px">Close</button>'); $('#mclose').onclick = closeModal; };
 
-function classify(cards, w) {
-  if (pureSeq(cards)) return 'pure';
-  if (impureSeq(cards, w)) return 'seq';
-  if (setOk(cards, w)) return 'set';
-  return null;
-}
-
-// groups: array of arrays of card objects. Returns { valid, deadwood, kinds }
-function evaluate(groups, w, maxPts) {
-  const kinds = groups.map((g) => classify(g, w));
-  const P = kinds.filter((k) => k === 'pure').length;
-  const I = kinds.filter((k) => k === 'seq').length;
-  const valid = P >= 1 && P + I >= 2 && kinds.every((k) => k);
-  const melded = new Set();
-  if (P >= 1) {
-    kinds.forEach((k, i) => {
-      if (k === 'pure') melded.add(i);
-      else if (k && P + I >= 2) melded.add(i);
-    });
+function showResult(over) {
+  const r = S.result; if (!r) return;
+  const rows = r.rows.map((p) => `<div class="box" style="padding:8px"><b>${esc(p.name)}</b> ${p.won ? '🏆' : ''} — <b>${p.score}</b> pts ${p.status === 'dropped' ? '(dropped)' : p.status === 'wrong' ? '(wrong show)' : ''}${p.out ? ' ❌ OUT' : ''}<div class="mini">${p.groups.map((g) => `<div class="grp"><div class="cards">${g.map((c) => cardEl(c)).join('')}</div></div>`).join('')}</div></div>`).join('');
+  const host = S.host === S.me;
+  let foot;
+  if (over) {
+    const w = S.players.find((p) => p.pid === S.gameWinner);
+    foot = `<h2 style="text-align:center">🏆 ${esc(w ? w.name : '')} wins the game!</h2>` + (host ? '<button id="mnext" style="width:100%">Play again</button>' : '<div class="small" style="text-align:center">Host can start a new game</div>') + '<button id="mleave" class="sec" style="width:100%;margin-top:8px">Leave room</button>';
+  } else {
+    foot = '<div id="cd" class="small" style="text-align:center"></div>' + (host ? '<button id="mnext" style="width:100%;margin-top:6px">Next deal now</button>' : '');
   }
-  let dead = 0;
-  groups.forEach((g, i) => {
-    if (!melded.has(i)) g.forEach((c) => (dead += pts(c)));
-  });
-  return { valid, deadwood: Math.min(dead, maxPts || 80), kinds };
+  openModal('result', `<h3>Deal ${r.dealNo}: ${esc(r.winnerName)} won</h3>${rows}<h4>Scoreboard</h4>${boardHtml()}${foot}`);
+  const nb = $('#mnext'); if (nb) nb.onclick = () => socket.emit(over ? 'rematch' : 'next');
+  const lb = $('#mleave'); if (lb) lb.onclick = leave;
 }
 
-
-
-window.RULES={evaluate:evaluate,classify:classify,pts:pts};
-})();
+setInterval(() => {
+  if (!S) return;
+  if (S.phase === 'playing') {
+    const t = Math.max(0, Math.ceil((S.turnEndsAt - Date.now()) / 1000));
+    const tm = $('#timer'); tm.textContent = '⏱ ' + t + 's'; tm.classList.toggle('low', t <= 10);
+  } else $('#timer').textContent = '';
+  const cd = $('#cd'); if (cd && S.nextAt) cd.textContent = 'Next deal in ' + Math.max(0, Math.ceil((S.nextAt - Date.now()) / 1000)) + 's';
+}, 500);
+</script>
+</body>
+</html>
