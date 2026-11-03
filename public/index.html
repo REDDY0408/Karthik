@@ -4,6 +4,38 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Rummy Friends</title>
+.card {
+  position: relative;
+  width: 60px;
+  height: 84px;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.4);
+  flex: 0 0 auto;
+}
+
+.card .corner {
+  position: absolute;
+  top: 4px;
+  left: 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  font-weight: 700;
+}
+.card .rank { font-size: 18px; }
+.card .suit { font-size: 16px; }
+
+.card.red   { color: #d32f2f; }
+.card.black { color: #111; }
+
+.hand {
+  display: flex;
+}
+.hand .card + .card {
+  margin-left: -28px;
+}
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:radial-gradient(ellipse at center,#5b1d14 0%,#2a0c08 100%);color:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
