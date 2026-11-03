@@ -463,6 +463,16 @@ setInterval(() => {
   } else $('#timer').textContent = '';
   const cd = $('#cd'); if (cd && S.nextAt) cd.textContent = 'Next deal in ' + Math.max(0, Math.ceil((S.nextAt - Date.now()) / 1000)) + 's';
 }, 500);
+  function createCard(rank, suit) {
+  const el = document.createElement('div');
+  el.className = 'card ' + ((suit === '♥' || suit === '♦') ? 'red' : 'black');
+  el.innerHTML = `
+    <div class="corner">
+      <span class="rank">${rank}</span>
+      <span class="suit">${suit}</span>
+    </div>`;
+  return el;
+}
 </script>
 </body>
 </html>
