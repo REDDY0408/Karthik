@@ -6,15 +6,18 @@ const { Server } = require('socket.io');
 const R = require('./rules');
 
 const CFG = { FIRST_DROP: 25, MIDDLE_DROP: 50, MAX_DEAL: 80, TOTAL_OUT: 101, MIN_P: 2, MAX_P: 6 };
+const TABLES = 10;
 const TURN_MS = 60 * 1000;
 const NEXT_DEAL_MS = 20 * 1000;
+const IDLE_MS = 10 * 60 * 1000; // a table with nobody connected for this long is freed
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
-app.get('/r/:code', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/t/:n', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/health', (req, res) => res.send('ok'));
 
 // Lets Android open WhatsApp links straight in the installed app (App Links).
 app.get('/.well-known/assetlinks.json', (req, res) => {
@@ -31,25 +34,40 @@ app.get('/.well-known/assetlinks.json', (req, res) => {
   ]);
 });
 
-const rooms = new Map();
-const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const rooms = new Map(); // table number -> room
+const KEY_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
 
-function newCode() {
-  let c;
-  do {
-    c = Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
-  } while (rooms.has(c));
-  return c;
+function newKey() {
+  return Array.from({ length: 8 }, () => KEY_CHARS[Math.floor(Math.random() * KEY_CHARS.length)]).join('');
 }
 
-function createRoom(hostPid) {
+function listTables() {
+  const out = [];
+  for (let n = 1; n <= TABLES; n++) {
+    const r = rooms.get(n);
+    out.push(r ? { n, busy: true, players: r.players.length, phase: r.phase } : { n, busy: false, players: 0, phase: 'free' });
+  }
+  return out;
+}
+function pushTables() { io.emit('tables', listTables()); }
+
+function createRoom(table, hostPid) {
   const room = {
-    code: newCode(), host: hostPid, players: [], phase: 'lobby', stock: [], discard: [],
+    table, key: newKey(), host: hostPid, players: [], phase: 'lobby', stock: [], discard: [],
     wild: null, wildRank: 0, turn: 0, turnPhase: 'draw', turnEndsAt: 0, dealNo: 0, dealer: -1,
-    log: [], result: null, gameWinner: null, timer: null, nextTimer: null, nextAt: 0,
+    log: [], result: null, gameWinner: null, timer: null, nextTimer: null, nextAt: 0, emptySince: 0,
   };
-  rooms.set(room.code, room);
+  rooms.set(table, room);
   return room;
+}
+
+function freeTable(room, reason) {
+  clearTimeout(room.timer);
+  clearTimeout(room.nextTimer);
+  if (rooms.get(room.table) !== room) return;
+  rooms.delete(room.table);
+  room.players.forEach((p) => { if (p.sid) io.to(p.sid).emit('closed', reason || 'This table was closed.'); });
+  pushTables();
 }
 
 const byId = (p) => Object.fromEntries(p.hand.map((c) => [c.id, c]));
@@ -58,7 +76,7 @@ const log = (room, msg) => { room.log.push(msg); if (room.log.length > 30) room.
 
 function view(room, me) {
   return {
-    code: room.code, host: room.host, me: me.pid, phase: room.phase, cfg: CFG, dealNo: room.dealNo,
+    table: room.table, key: room.key, host: room.host, me: me.pid, phase: room.phase, cfg: CFG, dealNo: room.dealNo,
     wild: room.wild, wildRank: room.wildRank,
     discard: room.discard.slice(-3), discardCount: room.discard.length, stockCount: room.stock.length,
     turnPid: room.phase === 'playing' ? cur(room).pid : null, turnPhase: room.turnPhase, turnEndsAt: room.turnEndsAt,
@@ -74,6 +92,8 @@ function view(room, me) {
 
 function broadcast(room) {
   room.players.forEach((p) => { if (p.sid) io.to(p.sid).emit('state', view(room, p)); });
+  room.emptySince = room.players.some((p) => p.sid) ? 0 : room.emptySince || Date.now();
+  pushTables();
 }
 
 function groupCards(p) {
@@ -205,32 +225,86 @@ function refillStock(room) {
   room.discard = [top];
 }
 
+// Remove a player's connection from their table. Lobby: seat is released. In a game: they are dropped and out.
+function leaveRoom(sock) {
+  const room = rooms.get(sock.data.table);
+  const p = room && room.players.find((x) => x.pid === sock.data.pid);
+  const t = sock.data.table;
+  if (room && p) {
+    if (room.phase === 'lobby') {
+      room.players = room.players.filter((x) => x !== p);
+      if (room.host === p.pid && room.players[0]) room.host = room.players[0].pid;
+      if (!room.players.length) freeTable(room);
+      else broadcast(room);
+    } else {
+      p.sid = null;
+      if (room.phase === 'playing' && p.status === 'active') {
+        p.dealScore = p.turns === 0 ? CFG.FIRST_DROP : CFG.MIDDLE_DROP;
+        p.status = 'dropped';
+        p.out = true;
+        log(room, `${p.name} left the table`);
+        if (cur(room) === p) afterExit(room);
+        else {
+          const act = room.players.filter((x) => x.status === 'active');
+          if (act.length === 1) finishDeal(room, act[0]); else broadcast(room);
+        }
+      } else {
+        p.out = true;
+        broadcast(room);
+      }
+      if (rooms.get(t) === room && room.players.every((x) => !x.sid) && (room.phase === 'gameOver' || room.phase === 'dealEnd')) freeTable(room);
+    }
+  }
+  sock.leave('t' + t);
+  sock.data = {};
+}
+
 io.on('connection', (sock) => {
+  sock.data = {};
+  sock.emit('tables', listTables());
+
   const ctx = () => {
-    const room = rooms.get(sock.data.code);
+    const room = rooms.get(sock.data.table);
     if (!room) return {};
     return { room, p: room.players.find((x) => x.pid === sock.data.pid) };
   };
   const myTurn = (room, p, phase) => room.phase === 'playing' && cur(room) === p && room.turnPhase === phase;
+  const cleanName = (n) => String(n || 'Player').trim().slice(0, 14) || 'Player';
 
-  sock.on('join', ({ code, pid, name, create }) => {
-    if (!pid) return;
-    name = String(name || 'Player').trim().slice(0, 14) || 'Player';
-    let room = create ? createRoom(pid) : rooms.get(String(code || '').toUpperCase());
-    if (!room) return sock.emit('err', 'Room not found. Check the code.');
+  function seat(room, pid, name) {
     let p = room.players.find((x) => x.pid === pid);
     if (!p) {
-      if (room.phase !== 'lobby') return sock.emit('err', 'Game already started in this room.');
-      if (room.players.length >= CFG.MAX_P) return sock.emit('err', 'Room is full (6 players).');
+      if (room.phase !== 'lobby') return sock.emit('err', 'This game has already started.');
+      if (room.players.length >= CFG.MAX_P) return sock.emit('err', 'This table is full (6 players).');
       p = { pid, name, sid: null, hand: [], groups: [], total: 0, out: false, status: 'waiting', scores: [], turns: 0, dealScore: 0 };
       room.players.push(p);
       log(room, `${name} joined`);
     }
+    if (sock.data.table && sock.data.table !== room.table) leaveRoom(sock);
     p.sid = sock.id;
     p.name = name;
-    sock.data = { code: room.code, pid };
-    sock.join(room.code);
+    sock.data = { table: room.table, pid };
+    sock.join('t' + room.table);
     broadcast(room);
+  }
+
+  // The first person to open a free table becomes its owner and gets the private invite link.
+  sock.on('claim', ({ table, pid, name }) => {
+    table = parseInt(table, 10);
+    if (!pid || !(table >= 1 && table <= TABLES)) return;
+    if (rooms.has(table)) return sock.emit('err', `Table ${table} is already in use. Pick another table.`);
+    const room = createRoom(table, pid);
+    seat(room, pid, cleanName(name));
+  });
+
+  // Friends join with the invite link (table number + secret key).
+  sock.on('join', ({ table, key, pid, name }) => {
+    table = parseInt(table, 10);
+    if (!pid) return;
+    const room = rooms.get(table);
+    if (!room) { sock.emit('err', `Table ${table} is no longer open.`); return sock.emit('gone'); }
+    if (String(key || '') !== room.key) { sock.emit('err', 'Invalid invite link for this table.'); return sock.emit('gone'); }
+    seat(room, pid, cleanName(name));
   });
 
   sock.on('start', () => {
@@ -248,10 +322,19 @@ io.on('connection', (sock) => {
   sock.on('rematch', () => {
     const { room, p } = ctx();
     if (!room || !p || room.host !== p.pid || room.phase !== 'gameOver') return;
+    room.players = room.players.filter((q) => q.sid);
     room.players.forEach((q) => { q.total = 0; q.out = false; q.scores = []; });
     room.dealNo = 0;
     room.gameWinner = null;
+    if (room.players.length < CFG.MIN_P) { room.phase = 'lobby'; room.result = null; return broadcast(room); }
     startDeal(room);
+  });
+
+  sock.on('close', () => {
+    const { room, p } = ctx();
+    if (!room || !p || room.host !== p.pid) return;
+    freeTable(room, 'The table owner closed this table.');
+    sock.data = {};
   });
 
   sock.on('arrange', ({ groups }) => {
@@ -321,21 +404,7 @@ io.on('connection', (sock) => {
     afterExit(room);
   });
 
-  sock.on('leave', () => {
-    const { room, p } = ctx();
-    if (!room || !p) return;
-    if (room.phase === 'lobby') {
-      room.players = room.players.filter((x) => x !== p);
-      if (room.host === p.pid && room.players[0]) room.host = room.players[0].pid;
-      if (!room.players.length) rooms.delete(room.code);
-      else broadcast(room);
-    } else {
-      p.sid = null;
-      broadcast(room);
-    }
-    sock.leave(sock.data.code);
-    sock.data = {};
-  });
+  sock.on('leave', () => { leaveRoom(sock); });
 
   sock.on('disconnect', () => {
     const { room, p } = ctx();
@@ -345,12 +414,12 @@ io.on('connection', (sock) => {
   });
 });
 
-// Clean up empty/old rooms every 30 minutes.
+// Free tables that nobody has been connected to for a while.
 setInterval(() => {
-  for (const [code, room] of rooms) {
-    if (room.players.every((p) => !p.sid)) { clearTimeout(room.timer); clearTimeout(room.nextTimer); rooms.delete(code); }
+  for (const room of rooms.values()) {
+    if (room.players.every((p) => !p.sid) && room.emptySince && Date.now() - room.emptySince > IDLE_MS) freeTable(room);
   }
-}, 30 * 60 * 1000);
+}, 60 * 1000);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log('Rummy server on port ' + PORT));
